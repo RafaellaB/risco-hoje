@@ -14,7 +14,7 @@ jobs:
       CEMADEN_SENHA: ${{ secrets.CEMADEN_SENHA }}
 
     steps:
-      - name: Checkout do Repositório
+      - name: Checkout do Repositório de Origem
         uses: actions/checkout@v4
         
       - name: Configurar Python e Instalar dependências (Completo)
@@ -24,33 +24,34 @@ jobs:
       - run: pip install requests pandas pytz numpy 
         
       - name: ⚙️ Executar 'calcular_risco_cli.py' (Calcula e incrementa o histórico)
-        # O script de risco lê o arquivo de chuva que o JOB 1 salvou no último ciclo.
         run: python calcular_risco_cli.py
         
-      # --- PASSO NOVO: ENVIO USANDO COMANDOS GIT PUROS ---
+      # --- PASSO 3: ENVIO DE DADOS PARA REPOSITÓRIO DE DESTINO (CORREÇÃO DE AUTENTICAÇÃO) ---
       - name: 🚀 Enviar 'resultado_risco_final.csv' para o Repositório do Painel
         run: |
-          # 1. Configura as credenciais (usando o token de destino)
+          # Configura as credenciais globais para o Git usar o Token para o domínio do GitHub
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           
-          # 2. Clona o repositório de destino para uma subpasta temporária (usando o PAT)
           DEST_REPO="RafaellaB/Painel-Diagrama-de-Risco"
           DEST_BRANCH="main"
+          DEST_DIR="destino_repo"
           
-          # URL com o token inserido
-          REPO_URL="https://${{ secrets.REPO_DESTINO_TOKEN }}@github.com/${DEST_REPO}.git"
-          
-          # Clona e entra na pasta
-          git clone --single-branch --branch ${DEST_BRANCH} ${REPO_URL} destino_repo
-          cd destino_repo
-          
-          # 3. Copia o arquivo gerado (risco_final.csv) para o repositório clonado
+          # ** LINHA CHAVE DE AUTENTICAÇÃO **: Injeta o token para uso em qualquer URL do GitHub.
+          git config --global url."https://${{ secrets.REPO_DESTINO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+          # Clona o repositório de destino usando a configuração de autenticação
+          git clone --single-branch --branch ${DEST_BRANCH} https://github.com/${DEST_REPO}.git ${DEST_DIR}
+          cd ${DEST_DIR}
+
+          # Copia o arquivo gerado da raiz do repositório de origem para o repositório clonado
           cp ../resultado_risco_final.csv .
-          
-          # 4. Faz o commit e push
+
+          # Faz o commit e push
           git add resultado_risco_final.csv
           
-          # Permite que o push falhe sem quebrar o job se não houver alteração (|| exit 0)
+          # Se não houver alteração (para o caso de o script ter rodado mais de uma vez com o mesmo dado), ele não falha.
           git commit -m "Incremento diário de risco: Adicionado dado do dia que encerrou." || exit 0
+          
+          # O push usa o token configurado globalmente
           git push origin ${DEST_BRANCH}
