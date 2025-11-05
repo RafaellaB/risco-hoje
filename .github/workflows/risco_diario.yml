@@ -1,0 +1,41 @@
+name: 📊 2. Cálculo e Incremento de Risco (Diário às 23:59)
+
+on:
+  # O gatilho agendado para 23:59 (02:59 UTC)
+  schedule:
+    - cron: '59 2 * * *' # 23:59 em Recife (UTC-3)
+  
+  # O gatilho manual (permite testar o job)
+  workflow_dispatch:
+
+jobs:
+  pipeline_risco_diario:
+    runs-on: ubuntu-latest
+    
+    env:
+      CEMADEN_EMAIL: ${{ secrets.CEMADEN_EMAIL }}
+      CEMADEN_SENHA: ${{ secrets.CEMADEN_SENHA }}
+
+    steps:
+      - name: Checkout do Repositório
+        # O Checkout precisa ser feito na branch 'main' para ter acesso aos dados de chuva mais recentes.
+        uses: actions/checkout@v4
+        
+      - name: Configurar Python e Instalar dependências (Completo)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install requests pandas pytz numpy 
+        
+      - name: ⚙️ Executar 'calcular_risco_cli.py' (Calcula e incrementa o histórico)
+        # O script de risco lê o arquivo de chuva que o JOB 1 salvou no último ciclo.
+        run: python calcular_risco_cli.py
+        
+      - name: 🚀 Enviar 'resultado_risco_final.csv' para o Repositório do Painel
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.REPO_DESTINO_TOKEN }} 
+          repository: 'RafaellaB/Painel-Diagrama-de-Risco' 
+          branch: 'main' 
+          file_pattern: 'resultado_risco_final.csv'
+          commit_message: 'Incremento diário de risco: Adicionado dado do dia que encerrou.'
