@@ -21,14 +21,60 @@ COLUNAS_ESPERADAS_VP = ['datahora', 'nomeEstacao', 'valorMedida']
 
 @st.cache_data(show_spinner=False)
 def carregar_dados_mare_cache(url_am_data):
-    """ Carrega o arquivo de maré (AM) ANUAL. Cache estático. """
-    df_am_raw = pd.read_csv(url_am_data)
-    df_am_raw.rename(columns={'datahora': 'datahora', 'altura': 'AM'}, inplace=True)
-    df_am_raw['datahora'] = pd.to_datetime(df_am_raw['datahora'])
-    df_am_raw['data'] = df_am_raw['datahora'].dt.strftime('%Y-%m-%d')
-    df_am_raw['hora_ref'] = df_am_raw['datahora'].dt.strftime('%H:00:00')
-    return df_am_raw[['data', 'hora_ref', 'AM']]
+    """ Carrega o maré (AM) detectando automaticamente o separador e limpando resíduos. """
+    try:
+        # 1. Busca o conteúdo bruto para análise
+        response = requests.get(url_am_data)
+        if response.status_code != 200:
+            st.error(f"Erro ao baixar maré: Status {response.status_code}")
+            return pd.DataFrame()
+        
+        conteudo = response.text
+        primeira_linha = conteudo.split('\n')[0]
+        
+        # Detecta separador baseado na primeira linha (vírgula ou ponto e vírgula)
+        separador = ';' if ';' in primeira_linha else ','
+        
+        # 2. Lê o CSV com o separador detectado
+        from io import StringIO
+        df = pd.read_csv(StringIO(conteudo), sep=separador, decimal=',', encoding='utf-8')
+        
+        # 3. Mapeamento flexível de colunas
+        mapeamento = {
+            'Hora_Exata': 'datahora',
+            'datahora': 'datahora',
+            'Altura_m': 'AM',
+            'altura': 'AM',
+            'AM': 'AM'
+        }
+        df = df.rename(columns=mapeamento)
 
+        # Caso especial: Se as colunas ainda estiverem grudadas por erro de leitura
+        if len(df.columns) == 1:
+            col_nome = df.columns[0]
+            if ';' in col_nome or ',' in col_nome:
+                sep_manual = ';' if ';' in col_nome else ','
+                temp = df[col_nome].astype(str).str.split(sep_manual, expand=True)
+                df['datahora'] = temp[0]
+                df['AM'] = temp[1]
+
+        # 4. Limpeza de resíduos (remove ';0' ou ',0' que tenha ficado na data)
+        df['datahora'] = df['datahora'].astype(str).str.split(';').str[0].str.split(',').str[0]
+        
+        # Conversão final
+        df['datahora'] = pd.to_datetime(df['datahora'], errors='coerce')
+        df = df.dropna(subset=['datahora'])
+        
+        df['data'] = df['datahora'].dt.strftime('%Y-%m-%d')
+        df['hora_ref'] = df['datahora'].dt.strftime('%H:00:00')
+        
+        # Garante que AM seja número (converte vírgula para ponto se necessário)
+        df['AM'] = pd.to_numeric(df['AM'].astype(str).str.replace(',', '.'), errors='coerce')
+        
+        return df[['data', 'hora_ref', 'AM']]
+    except Exception as e:
+        st.error(f"Erro crítico no processamento da Maré: {e}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=300, show_spinner=False) # TTL = 300 segundos (5 minutos)
 def carregar_dados_chuva_cache(url_base, data_de_hoje_str, separador, colunas_csv):
