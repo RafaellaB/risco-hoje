@@ -4,3 +4,4 @@ requests
 numpy
 plotly
 pytz
+matplotlib
