@@ -3,15 +3,15 @@ name: 🌧️ 1. Chuva Incremental (5 em 5 min)
 on:
   schedule:
     - cron: '*/5 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Permite rodar manualmente clicando no botão
 
 jobs:
   pipeline_chuva_incremental:
     runs-on: ubuntu-latest
     
-    env:
-      CEMADEN_EMAIL: ${{ secrets.CEMADEN_EMAIL }}
-      CEMADEN_PASS: ${{ secrets.CEMADEN_PASS }} 
+    # Adicionando permissões explicitas para o bot conseguir escrever no repositório
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout do Repositório
@@ -22,18 +22,26 @@ jobs:
         with:
           python-version: '3.10'
           
-      - name: 2. Instalar Módulos Necessários (requests, pandas, pytz)
-       
+      - name: 2. Instalar Módulos Necessários
         run: python -m pip install requests pandas pytz
 
-      - name: Rodar script de atualização de dados
+      - name: 3. Rodar script de atualização de dados
+        env:
+          CEMADEN_EMAIL: ${{ secrets.CEMADEN_EMAIL }}
+          CEMADEN_PASS: ${{ secrets.CEMADEN_PASS }} 
         run: python atualizar_dados.py
 
-      - name: Fazer commit e push das alterações
+      - name: 4. Fazer commit e push das alterações
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add 'chuva_recife_*.csv'
-          git reset -- 'resultado_risco_final.csv' || true
-          git commit -m "Dados de chuva atualizados automaticamente" || exit 0
+          
+          # Adiciona apenas os novos CSVs de chuva
+          git add chuva_recife_*.csv
+          
+          # Garante que não vai tentar subir o CSV de risco se ele não mudou
+          git reset -- resultado_risco_final.csv || true
+          
+          # Tenta o commit; se não houver mudanças, o 'exit 0' impede o erro
+          git commit -m "Dados de chuva atualizados automaticamente [skip ci]" || exit 0
           git push

@@ -114,7 +114,7 @@ def main():
     """Função principal que orquestra todo o processo."""
     
     cemaden_email = os.getenv("CEMADEN_EMAIL")
-    cemaden_senha = os.getenv("CEMADEN_SENHA")
+    cemaden_senha = os.getenv("CEMADEN_PASS")
     
     token_acesso = obter_token(cemaden_email, cemaden_senha)
     
