@@ -7,9 +7,9 @@ import streamlit as st
 import plotly.graph_objects as go 
 
 # 1. ambiente dos arquivos
-URL_BASE_CHUVAS = 'https://raw.githubusercontent.com/RafaellaB/Diagramas-de-risco-din-mico/main/chuva_recife_' 
+URL_BASE_CHUVAS = 'https://raw.githubusercontent.com/RafaellaB/risco-hoje/main/chuva_recife_' 
 SUFIXO_ARQUIVO_CHUVAS = '.csv'
-URL_ARQUIVO_MARE_AM = 'https://raw.githubusercontent.com/RafaellaB/Diagramas-de-risco-din-mico/main/tide/mare_calculada_hora_em_hora_ano-completo.csv'
+URL_ARQUIVO_MARE_AM = 'https://raw.githubusercontent.com/RafaellaB/risco-hoje/main/tide/mare_calculada_hora_em_hora_ano-completo.csv'
 CSV_DELIMITADOR = ',' 
 COLUNAS_NO_CSV_CHUVAS = ['datahora', 'nome', 'valor'] 
 COLUNAS_ESPERADAS_VP = ['datahora', 'nomeEstacao', 'valorMedida'] 
