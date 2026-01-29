@@ -11,7 +11,7 @@ jobs:
     
     env:
       CEMADEN_EMAIL: ${{ secrets.CEMADEN_EMAIL }}
-      CEMADEN_SENHA: ${{ secrets.CEMADEN_SENHA }}
+      CEMADEN_PASS: ${{ secrets.CEMADEN_PASS }} 
 
     steps:
       - name: Checkout do Repositório
