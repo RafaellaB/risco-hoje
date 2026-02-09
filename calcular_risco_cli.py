@@ -9,8 +9,8 @@ from datetime import datetime
 from pytz import timezone
 from io import StringIO
 
-URL_ARQUIVO_HISTORICO = 'https://raw.githubusercontent.com/RafaellaB/Painel-Diagrama-de-Risco/main/resultado_risco_final.csv'
-URL_ARQUIVO_MARE_AM = 'https://raw.githubusercontent.com/RafaellaB/Diagramas-de-risco-din-mico/main/tide/mare_calculada_hora_em_hora_ano-completo.csv'
+URL_ARQUIVO_HISTORICO = 'https://raw.githubusercontent.com/RafaellaB/risco-hoje/main/resultado_risco_final.csv'
+URL_ARQUIVO_MARE_AM = 'https://raw.githubusercontent.com/RafaellaB/risco-hoje/main/tide/mare_calculada_hora_em_hora_ano-completo.csv' 
 NOME_ARQUIVO_SAIDA_FINAL = 'resultado_risco_final.csv'
 CSV_DELIMITADOR = ','
 ESTACOES_DESEJADAS = ["Campina do Barreto", "Torreão", "RECIFE - APAC", "Imbiribeira", "Dois Irmãos"]
@@ -31,6 +31,7 @@ def carregar_dados_mare(url_am_data):
         return pd.DataFrame()
 
 def processar_chuva_arquivo(df_chuva, data_alvo):
+    # --- MANTÉM CÁLCULO ORIGINAL ---
     df = df_chuva[df_chuva['nomeEstacao'].isin(ESTACOES_DESEJADAS)].copy()
     df['datahora'] = pd.to_datetime(df['datahora'])
     df['data_str'] = df['datahora'].dt.strftime('%Y-%m-%d')
@@ -55,6 +56,10 @@ def processar_chuva_arquivo(df_chuva, data_alvo):
 if __name__ == "__main__":
     print("Iniciando Nova Versão do Script de Risco (Varredura de Arquivos)...")
     
+    # Define a data de hoje para a trava de segurança
+    fuso = timezone('America/Recife')
+    hoje_str = datetime.now(fuso).strftime('%Y-%m-%d')
+    
     df_am = carregar_dados_mare(URL_ARQUIVO_MARE_AM)
     if df_am.empty: 
         print("Erro: Maré vazia")
@@ -69,6 +74,13 @@ if __name__ == "__main__":
         match = re.search(r'(\d{4}-\d{2}-\d{2})', arq)
         if not match: continue
         data_do_arquivo = match.group(1)
+        
+        # --- AJUSTE DE TEMPO: TRAVA DE SEGURANÇA ---
+        # Ignora o arquivo se for o dia de hoje, pois ele ainda está incompleto.
+        # O histórico consolidado deve conter apenas dias inteiros (D-1).
+        if data_do_arquivo == hoje_str:
+            print(f"-> Pulando {data_do_arquivo} (Arquivo de hoje ainda em preenchimento)")
+            continue
         
         try:
             print(f"-> Processando: {data_do_arquivo}")
@@ -86,7 +98,7 @@ if __name__ == "__main__":
             print(f"Erro no arquivo {arq}: {e}")
 
     if not lista_novos_dados:
-        print("Aviso: Nenhum arquivo de chuva foi processado com sucesso.")
+        print("Aviso: Nenhum arquivo de chuva de dias anteriores foi processado.")
         sys.exit(0)
 
     df_total_novo = pd.concat(lista_novos_dados, ignore_index=True)
@@ -101,4 +113,4 @@ if __name__ == "__main__":
     df_final.drop_duplicates(subset=['data', 'hora_ref', 'nomeEstacao'], keep='last', inplace=True)
     df_final.sort_values(['data', 'hora_ref'], ascending=[False, False], inplace=True)
     df_final.to_csv(NOME_ARQUIVO_SAIDA_FINAL, index=False)
-    print(f"✅ Finalizado com {len(df_final)} registros.")
+    print(f"✅ Finalizado com {len(df_final)} registros consolidados.")

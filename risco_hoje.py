@@ -18,7 +18,7 @@ COLUNAS_NO_CSV_CHUVAS = ['datahora', 'nome', 'valor']
 traducoes = {
     "Português": {
         "titulo_pagina": "Risco de Alagamentos - Recife",
-        "btn_atualizar": "Atualizar",
+        "btn_atualizar": "Atualizar Dados",
         "btn_historico": "Ver Histórico",
         "msg_aguardando": "Aguardando dados de hoje",
         "msg_erro": "Erro ao processar. Tente atualizar.",
@@ -32,7 +32,7 @@ traducoes = {
     },
     "English": {
         "titulo_pagina": "Flood Risk - Recife",
-        "btn_atualizar": "Update",
+        "btn_atualizar": "Update Data",
         "btn_historico": "View History",
         "msg_aguardando": "Waiting for today's data",
         "msg_erro": "Processing error. Please try updating.",
@@ -111,14 +111,11 @@ def gerar_diagramas(df_analisado, idioma):
         x_grid, y_grid = np.arange(0, lim_x, 1), np.linspace(0, lim_y, 100)
         z_grid = np.array([x * y for y in y_grid for x in x_grid]).reshape(len(y_grid), len(x_grid))
         
-        # 1. Heatmap de fundo
         fig.add_trace(go.Heatmap(x=x_grid, y=y_grid, z=z_grid, colorscale=[[0, "#90EE90"], [0.3, "#FFD700"], [0.5, "#FFA500"], [1.0, "#D32F2F"]], showscale=False, zmin=0, zmax=100, hoverinfo='none'))
         
-        # 2. Linha tracejada conectando os pontos
         grupo = grupo.sort_values(by='hora_ref')
         fig.add_trace(go.Scatter(x=grupo['VP'], y=grupo['AM'], mode='lines', line=dict(color='black', width=1, dash='dash'), hoverinfo='none', showlegend=False))
         
-        # 3. Pontos coloridos e Interatividade (Hover)
         for _, ponto in grupo.iterrows():
             cor_ponto = mapa_de_cores.get(ponto['Classificacao_Risco'], 'black')
             fig.add_trace(go.Scatter(
@@ -126,7 +123,7 @@ def gerar_diagramas(df_analisado, idioma):
                 mode='markers', 
                 marker=dict(color=cor_ponto, size=10, line=dict(width=1, color='black')),
                 hoverinfo='text',
-                hovertext=f"<b>{t['tempo']}:</b> {ponto['hora_ref']}<br><b>{t['risco']}:</b> {ponto['Classificacao_Risco']}<br><b>{t['sigla_chuva']}:</b> {ponto['VP']}<br><b>{t['sigla_mare']}:</b> {ponto['AM']}",
+                hovertext=f"<b>{t['tempo']}:</b> {ponto['hora_ref']}<br><b>{t['risco']}:</b> {ponto['Classificacao_Risco']}<br><b>{t['sigla_chuva']}:</b> {ponto['VP']:.2f}<br><b>{t['sigla_mare']}:</b> {ponto['AM']:.2f}",
                 showlegend=False
             ))
         
@@ -135,34 +132,30 @@ def gerar_diagramas(df_analisado, idioma):
 
 # BLOCO PRINCIPAL
 if __name__ == "__main__":
-    st.set_page_config(page_title="Risco Recife", layout="wide")
+    st.set_page_config(page_title="Risco Recife Hoje", layout="wide")
     fuso = pytz.timezone('America/Recife') 
     data_hoje_str = datetime.now(fuso).strftime('%Y-%m-%d')
 
-    # ALTERAÇÃO AQUI: De selectbox para radio (bolinhas) na horizontal
-    idioma_sel = st.sidebar.radio("Idioma / Language", ["Português", "English"], horizontal=True)
+    # --- SIDEBAR (ORDEM VISUAL PADRONIZADA) ---
+    idioma_sel = st.sidebar.radio("Idioma / Language", ["Português", "English"], horizontal=True, label_visibility="collapsed")
     t = traducoes[idioma_sel]
     
+    st.sidebar.markdown("---")
+    
+    # 1. Botão Atualizar (Ajustado para o padrão Primary e sem ícones)
+    if st.sidebar.button(t['btn_atualizar'], use_container_width=True, type="primary"):
+        carregar_dados_chuva_cache.clear()
+        st.rerun()
+
+    # Espaçamento dinâmico para o rodapé
+    st.sidebar.markdown("<br>"*12, unsafe_allow_html=True)
+    st.sidebar.markdown("---")
+
+    # 2. Botão Histórico (Padrão Primary)
+    st.sidebar.link_button(t['btn_historico'], "https://painel-diagrama-de-risco-f5n2bwurkppdppawqhqkmz.streamlit.app/", use_container_width=True, type="primary")
+
+    # --- CONTEÚDO PRINCIPAL ---
     st.title(t['titulo_pagina'])
-
-    st.markdown("""
-    <style>
-    div.stButton > button, div.stLinkButton > a {
-        background-color: #4F8BF9 !important; color: white !important; border-radius: 6px !important;
-        width: 200px !important; height: 38px !important; font-size: 14px !important;
-        display: flex !important; align-items: center !important; justify-content: center !important;
-        text-decoration: none !important; margin: auto !important;
-    }
-    </style>""", unsafe_allow_html=True)
-
-    _, col1, col2, _ = st.columns([2, 1, 1, 2])
-    with col1:
-        if st.button(t['btn_atualizar']):
-            carregar_dados_chuva_cache.clear()
-            st.rerun() 
-    with col2:
-        st.link_button(t['btn_historico'], "https://painel-diagrama-de-risco-f5n2bwurkppdppawqhqkmz.streamlit.app/")
-
     st.divider()
 
     try:
