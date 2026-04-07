@@ -103,7 +103,13 @@ def gerar_diagramas(df_analisado, idioma):
     mapa_de_cores = {'Alto': '#D32F2F', 'Moderado Alto': '#FFA500', 'Moderado': '#FFC107', 'Baixo': '#4CAF50'}
     
     for (data, estacao), grupo in df_analisado.groupby(['data', 'nomeEstacao']):
-        st.subheader(f"{t['header_grafico']}: {estacao}")
+        data_dt = pd.to_datetime(data, errors='coerce')
+        if pd.isna(data_dt):
+            data_formatada = str(data)
+        else:
+            data_formatada = data_dt.strftime('%d/%m/%Y') if idioma == 'Português' else data_dt.strftime('%Y-%m-%d')
+
+        st.subheader(f"{t['header_grafico']}: {estacao} - {data_formatada}")
         fig = go.Figure()
         
         lim_x = max(110, grupo['VP'].max() * 1.2 if not grupo.empty else 110)
