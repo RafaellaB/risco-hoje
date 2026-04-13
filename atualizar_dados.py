@@ -5,13 +5,6 @@ import requests
 from datetime import datetime, timedelta 
 from pytz import timezone
 
-def obter_estacoes_recife():
-    """Retorna somente os codigos das 5 estacoes de estudo (A/G)."""
-    return [
-        '261160614A', '261160609A', '261160623A', '261160618A', '261160603A',
-        '261160614G', '261160609G', '261160623G', '261160618G', '261160603G'
-    ]
-
 def obter_token(email, senha):
     """Obtém o token de autenticação da API do CEMADEN."""
     if not email or not senha:
@@ -48,11 +41,10 @@ def buscar_dados_cemaden(token, lista_estacoes, uf='PE', rede='11', sensor='10')
     for codestacao in lista_estacoes:
         params = {'codestacao': codestacao, 'uf': uf, 'rede': rede, 'sensor': sensor, 'formato': 'JSON'}
         try:
-            response = requests.get(url_base, headers=headers, params=params, timeout=30)
+            response = requests.get(url_base, headers=headers, params=params)
             response.raise_for_status()
             dados = response.json()
             if isinstance(dados, dict) and 'Nenhum resultado foi encontrado' in dados.get('Info', ''):
-                print(f"Sem dados para a estacao {codestacao}.")
                 continue
             if dados:
                 dados_para_df = [dados] if isinstance(dados, dict) else dados
@@ -65,10 +57,8 @@ def buscar_dados_cemaden(token, lista_estacoes, uf='PE', rede='11', sensor='10')
     df_final = pd.concat(lista_dfs, ignore_index=True)
 
     if not df_final.empty and 'datahora' in df_final.columns:
-        # utc=True evita erro quando a API alterna entre string ingênua e timezone-aware.
-        df_final['datahora'] = pd.to_datetime(df_final['datahora'], errors='coerce', utc=True)
-        df_final = df_final.dropna(subset=['datahora'])
-        df_final['datahora'] = df_final['datahora'].dt.tz_convert('America/Recife')
+        df_final['datahora'] = pd.to_datetime(df_final['datahora'])
+        df_final['datahora'] = df_final['datahora'].dt.tz_localize('UTC').dt.tz_convert('America/Recife')
         df_final['datahora'] = df_final['datahora'].dt.strftime('%Y-%m-%d %H:%M:%S')
     
     return df_final
@@ -100,9 +90,10 @@ def main():
     token_acesso = obter_token(cemaden_email, cemaden_senha)
     
     if token_acesso:
-        estacoes_de_recife = obter_estacoes_recife()
-        print(f"Consultando {len(estacoes_de_recife)} estacoes: {estacoes_de_recife}")
-
+        estacoes_de_recife = [
+            '261160614A', '261160609A', '261160623A', '261160618A', '261160603A'
+        ]
+        
         df_chuva_recente = buscar_dados_cemaden(token_acesso, estacoes_de_recife)
 
         if not df_chuva_recente.empty:
@@ -134,11 +125,9 @@ def main():
             
             print("🚀 Processamento de datas concluído.")
         else:
-            print("❌ Nenhum dado retornado pela API nas estacoes configuradas.", file=sys.stderr)
-            sys.exit(1)
+            print("Nenhum dado retornado pela API nas últimas horas.")
     else:
-        print("❌ Falha na autenticação.", file=sys.stderr)
-        sys.exit(1)
+        print("Falha na autenticação.")
 
 if __name__ == "__main__":
     main()
