@@ -1,7 +1,7 @@
 import pandas as pd
 import requests
 import numpy as np
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pytz 
 import streamlit as st 
 import plotly.graph_objects as go 
@@ -21,6 +21,7 @@ traducoes = {
         "btn_atualizar": "Atualizar Dados",
         "btn_historico": "Ver Histórico",
         "msg_aguardando": "Aguardando dados de hoje",
+        "msg_ultimo_disponivel": "Dados de hoje indisponíveis. Exibindo último dia disponível",
         "msg_erro": "Erro ao processar. Tente atualizar.",
         "header_grafico": "Diagrama de Risco",
         "eixo_x": "Chuva (mm)",
@@ -35,6 +36,7 @@ traducoes = {
         "btn_atualizar": "Update Data",
         "btn_historico": "View History",
         "msg_aguardando": "Waiting for today's data",
+        "msg_ultimo_disponivel": "Today's data is unavailable. Showing the latest available day",
         "msg_erro": "Processing error. Please try updating.",
         "header_grafico": "Risk Diagram",
         "eixo_x": "Rainfall (mm)",
@@ -76,6 +78,14 @@ def carregar_dados_chuva_cache(url_base, data_de_hoje_str, separador, colunas_cs
         df_chuva_raw['datahora'] = pd.to_datetime(df_chuva_raw['datahora'])
         return df_chuva_raw
     except: return pd.DataFrame()
+
+def carregar_chuva_mais_recente(url_base, data_base, separador, colunas_csv, max_dias_retrocesso=7):
+    for dias_atras in range(max_dias_retrocesso + 1):
+        data_teste = (data_base - timedelta(days=dias_atras)).strftime('%Y-%m-%d')
+        df_teste = carregar_dados_chuva_cache(url_base, data_teste, separador, colunas_csv)
+        if not df_teste.empty:
+            return df_teste, data_teste, dias_atras
+    return pd.DataFrame(), None, None
 
 # 3. FUNÇÕES DE PROCESSAMENTO
 def processar_dados_chuva_simplificado(df_chuva, datas_desejadas, estacoes_desejadas):
@@ -140,7 +150,8 @@ def gerar_diagramas(df_analisado, idioma):
 if __name__ == "__main__":
     st.set_page_config(page_title="Risco Recife Hoje", layout="wide")
     fuso = pytz.timezone('America/Recife') 
-    data_hoje_str = datetime.now(fuso).strftime('%Y-%m-%d')
+    hoje = datetime.now(fuso).date()
+    data_hoje_str = hoje.strftime('%Y-%m-%d')
 
     # --- SIDEBAR (ORDEM VISUAL PADRONIZADA) ---
     idioma_sel = st.sidebar.radio("Idioma / Language", ["Português", "English"], horizontal=True, label_visibility="collapsed")
@@ -166,12 +177,21 @@ if __name__ == "__main__":
 
     try:
         df_am = carregar_dados_mare_cache(URL_ARQUIVO_MARE_AM)
-        df_chuva_raw = carregar_dados_chuva_cache(URL_BASE_CHUVAS, data_hoje_str, CSV_DELIMITADOR, COLUNAS_NO_CSV_CHUVAS)
+        df_chuva_raw, data_referencia_str, dias_defasagem = carregar_chuva_mais_recente(
+            URL_BASE_CHUVAS,
+            hoje,
+            CSV_DELIMITADOR,
+            COLUNAS_NO_CSV_CHUVAS,
+            max_dias_retrocesso=7
+        )
         
         if df_chuva_raw.empty or df_am.empty:
             st.info(f"{t['msg_aguardando']} ({datetime.now(fuso).strftime('%d/%m/%Y')}).")
         else:
-            df_vp = processar_dados_chuva_simplificado(df_chuva_raw, [data_hoje_str], ["Campina do Barreto", "Torreão", "RECIFE - APAC", "Imbiribeira", "Dois Irmãos"])
+            if dias_defasagem and dias_defasagem > 0:
+                st.warning(f"{t['msg_ultimo_disponivel']}: {datetime.strptime(data_referencia_str, '%Y-%m-%d').strftime('%d/%m/%Y')}")
+
+            df_vp = processar_dados_chuva_simplificado(df_chuva_raw, [data_referencia_str], ["Campina do Barreto", "Torreão", "RECIFE - APAC", "Imbiribeira", "Dois Irmãos"])
             df_final = pd.merge(df_vp, df_am, on=['data', 'hora_ref'], how='left')
             
             df_final['Nivel_Risco_Valor'] = (df_final['VP'] * df_final['AM']).fillna(0)
